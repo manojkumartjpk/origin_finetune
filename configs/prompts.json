@@ -1,0 +1,17 @@
+{
+  "crack": [
+    "segment crack",
+    "segment wall crack"
+  ],
+  "taping_area": [
+    "segment taping area",
+    "segment drywall seam",
+    "segment joint tape",
+    "segment joint/tape"
+  ],
+  "eval_prompts": {
+    "crack": "segment crack",
+    "taping_area": "segment taping area"
+  }
+}
+
