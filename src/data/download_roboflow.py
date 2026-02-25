@@ -44,6 +44,11 @@ def main():
     args = parser.parse_args()
 
     meta = fetch_project_meta(args.api_key, args.workspace, args.project)
+    if "project" not in meta:
+        raise RuntimeError(
+            "Roboflow API response did not contain 'project'. "
+            f"Check workspace/project names and API key. Response keys={list(meta.keys())}, body={json.dumps(meta)[:500]}"
+        )
     project_meta = meta["project"]
     versions = meta.get("versions", [])
 
@@ -73,4 +78,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
