@@ -1,0 +1,20 @@
+{
+  "split": "test",
+  "overall": {
+    "miou": 4.0013679401124103e-11,
+    "dice": 4.0013679401124103e-11,
+    "n": 100
+  },
+  "per_label": {
+    "taping_area": {
+      "miou": 4.0013679401124103e-11,
+      "dice": 4.0013679401124103e-11,
+      "n": 100
+    }
+  },
+  "avg_inference_time_sec_per_image": 2.036387966559978,
+  "model_dir": "facebook/sam3",
+  "threshold": 0.5,
+  "mask_threshold": 0.5,
+  "max_samples": 100
+}

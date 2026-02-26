@@ -1,0 +1,1 @@
+Zero-shot CLIPSeg baseline on manifest_all_resplit test split

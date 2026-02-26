@@ -1,0 +1,1 @@
+SAM3 zero-shot baseline (subset/full; check max_samples in metrics JSON)
