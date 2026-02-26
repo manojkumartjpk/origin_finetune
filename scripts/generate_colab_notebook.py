@@ -109,6 +109,18 @@ print('API key set:', bool(os.environ.get('ROBOFLOW_API_KEY')))
 """
         )
     )
+    cells.append(
+        _code(
+            """#@title 5b) (Optional) Enter Hugging Face token for SAM3 (hidden input)
+import os
+from getpass import getpass
+
+if 'HF_TOKEN' not in os.environ or not os.environ['HF_TOKEN']:
+    os.environ['HF_TOKEN'] = getpass('Enter HF_TOKEN (optional now, required for SAM3): ')
+print('HF token set:', bool(os.environ.get('HF_TOKEN')))
+"""
+        )
+    )
 
     cells.append(
         _code(
@@ -215,26 +227,47 @@ Suggested policy:
 
     cells.append(
         _code(
-            """#@title 10) SAM3 baseline placeholder (setup + notes)
-# Fill this section only if SAM3 access/setup works before the deadline.
-# Recommended outputs:
-# - outputs/metrics/sam3_zeroshot_test.json
-# - outputs/eval_vis_sam3_zeroshot/
-print("SAM3 baseline placeholder: implement only if setup succeeds within time budget.")
+            """#@title 10) Install/upgrade dependencies for SAM3 (run only if needed)
+%cd {REPO_DIR}
+!pip install -q -U transformers accelerate huggingface_hub
+# If the official sam3 package requires extra deps, install them here as well.
 """
         )
     )
 
     cells.append(
         _code(
-            """#@title 11) Archive SAM3 baseline (run only after SAM3 metrics exist)
+            """#@title 11) Run SAM3 zero-shot baseline (subset first, then full)
 %cd {REPO_DIR}
+SAM3_RUN_ID = "sam3_zeroshot_subset100_v1"  # @param {type:"string"}
+SAM3_MODEL_ID = "facebook/sam3"  # @param {type:"string"}
+SAM3_MAX_SAMPLES = 100  # @param {type:"integer"}
+
+# Edit the command strings below if you change the values above.
+!python -m src.eval_sam3 \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-id "facebook/sam3" \
+  --split test \
+  --max-samples 100 \
+  --save-vis-dir outputs/eval_vis_sam3_zeroshot_subset100_v1 \
+  --max-vis 4 \
+  --metrics-out outputs/metrics/sam3_zeroshot_subset100_v1.json
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 12) Archive SAM3 baseline (run after SAM3 metrics exist)
+%cd {REPO_DIR}
+SAM3_RUN_ID = "sam3_zeroshot_subset100_v1"  # @param {type:"string"}
+# Edit the command strings below if you change the run id above.
 !python scripts/archive_experiment.py \
   --category baselines \
-  --run-id sam3_zeroshot_v1 \
-  --summary-json outputs/metrics/sam3_zeroshot_test.json \
-  --copy outputs/eval_vis_sam3_zeroshot \
-  --notes "SAM3 zero-shot baseline (subset or full test; note exact scope in report)"
+  --run-id sam3_zeroshot_subset100_v1 \
+  --summary-json outputs/metrics/sam3_zeroshot_subset100_v1.json \
+  --copy outputs/eval_vis_sam3_zeroshot_subset100_v1 \
+  --notes "SAM3 zero-shot baseline (subset/full; check max_samples in metrics JSON)"
 """
         )
     )
@@ -249,15 +282,16 @@ Use unique output directories per experiment to avoid overwriting.
 
     cells.append(
         _code(
-            """#@title 12) Fine-tune CLIPSeg (main run)
+            """#@title 13) Fine-tune CLIPSeg (main run)
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
 FT_OUTPUT_DIR = f"checkpoints/{MAIN_RUN_ID}"
 print("FT_OUTPUT_DIR =", FT_OUTPUT_DIR)
 
+# Edit the command strings below if you change MAIN_RUN_ID.
 !python -m src.train_clipseg \
     --manifest-csv data/processed/manifest_all_resplit.csv \
-    --output-dir {FT_OUTPUT_DIR} \
+    --output-dir checkpoints/clipseg_ft_e8_352_v1 \
     --epochs 8 \
     --batch-size 4 \
     --image-size 352 \
@@ -269,27 +303,28 @@ print("FT_OUTPUT_DIR =", FT_OUTPUT_DIR)
 
     cells.append(
         _code(
-            """#@title 13) Evaluate fine-tuned CLIPSeg (main run)
+            """#@title 14) Evaluate fine-tuned CLIPSeg (main run)
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # must match previous cell if rerun separately
 FT_OUTPUT_DIR = f"checkpoints/{MAIN_RUN_ID}"
 FT_EVAL_VIS_DIR = f"outputs/eval_vis_{MAIN_RUN_ID}"
 FT_METRICS_OUT = f"outputs/metrics/{MAIN_RUN_ID}_test.json"
 
+# Edit the command strings below if you change MAIN_RUN_ID.
 !python -m src.eval_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
-  --model-dir {FT_OUTPUT_DIR} \
+  --model-dir checkpoints/clipseg_ft_e8_352_v1 \
   --split test \
-  --save-vis-dir {FT_EVAL_VIS_DIR} \
+  --save-vis-dir outputs/eval_vis_clipseg_ft_e8_352_v1 \
   --max-vis 4 \
-  --metrics-out {FT_METRICS_OUT}
+  --metrics-out outputs/metrics/clipseg_ft_e8_352_v1_test.json
 """
         )
     )
 
     cells.append(
         _code(
-            """#@title 14) Create side-by-side report panels (orig | GT | pred) for main run
+            """#@title 15) Create side-by-side report panels (orig | GT | pred) for main run
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -334,25 +369,26 @@ print("panels saved:", saved)
 
     cells.append(
         _code(
-            """#@title 15) Model size (runtime & footprint section) for main run
+            """#@title 16) Model size (runtime & footprint section) for main run
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
-!du -sh checkpoints/{MAIN_RUN_ID}
-!du -sh checkpoints/{MAIN_RUN_ID}/*
+!du -sh checkpoints/clipseg_ft_e8_352_v1
+!du -sh checkpoints/clipseg_ft_e8_352_v1/*
 """
         )
     )
 
     cells.append(
         _code(
-            """#@title 16) Archive fine-tuned CLIPSeg main run artifacts into tracked results/
+            """#@title 17) Archive fine-tuned CLIPSeg main run artifacts into tracked results/
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+# Edit the command strings below if you change MAIN_RUN_ID.
 !python scripts/archive_experiment.py \
   --category finetuned \
-  --run-id {MAIN_RUN_ID} \
-  --summary-json outputs/metrics/{MAIN_RUN_ID}_test.json \
-  --copy checkpoints/{MAIN_RUN_ID}/best_metrics.json checkpoints/{MAIN_RUN_ID}/train_history.json outputs/report_panels_{MAIN_RUN_ID} \
+  --run-id clipseg_ft_e8_352_v1 \
+  --summary-json outputs/metrics/clipseg_ft_e8_352_v1_test.json \
+  --copy checkpoints/clipseg_ft_e8_352_v1/best_metrics.json checkpoints/clipseg_ft_e8_352_v1/train_history.json outputs/report_panels_clipseg_ft_e8_352_v1 \
   --notes "Main fine-tuned CLIPSeg run (full fine-tuning, 8 epochs, image_size=352)"
 """
         )
@@ -374,12 +410,13 @@ Recommended order:
 
     cells.append(
         _code(
-            """#@title 17) Threshold sweep helper on main checkpoint (cheap improvement test)
+            """#@title 18) Threshold sweep helper on main checkpoint (cheap improvement test)
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
 for thr in [0.3, 0.4, 0.5, 0.6]:
     out_json = f"outputs/metrics/{MAIN_RUN_ID}_test_thr{str(thr).replace('.', '')}.json"
     print("\\n=== threshold", thr, "===")
+    # If interpolation fails in your Colab, replace {thr}/{MAIN_RUN_ID} with literal values.
     !python -m src.eval_clipseg \
       --manifest-csv data/processed/manifest_all_resplit.csv \
       --model-dir checkpoints/{MAIN_RUN_ID} \
@@ -392,7 +429,7 @@ for thr in [0.3, 0.4, 0.5, 0.6]:
 
     cells.append(
         _code(
-            """#@title 18) Custom CLIPSeg experiment template (new checkpoint dir each time)
+            """#@title 19) Custom CLIPSeg experiment template (new checkpoint dir each time)
 %cd {REPO_DIR}
 EXP_RUN_ID = "clipseg_ft_e12_352_trial1"  # @param {type:"string"}
 EXP_EPOCHS = 12  # @param {type:"integer"}
@@ -400,6 +437,7 @@ EXP_IMAGE_SIZE = 352  # @param {type:"integer"}
 EXP_BATCH = 4  # @param {type:"integer"}
 EXP_LR = 2e-5  # @param {type:"number"}
 
+# If shell interpolation fails in your Colab, replace {EXP_*} placeholders with literals.
 !python -m src.train_clipseg \
     --manifest-csv data/processed/manifest_all_resplit.csv \
     --output-dir checkpoints/{EXP_RUN_ID} \
@@ -426,7 +464,7 @@ EXP_LR = 2e-5  # @param {type:"number"}
 
     cells.append(
         _code(
-            """#@title 19) Example inference for required output mask naming (main run)
+            """#@title 20) Example inference for required output mask naming (main run)
 %cd {REPO_DIR}
 import pandas as pd
 from pathlib import Path
@@ -446,7 +484,7 @@ print('Example label:', row['label'])
 
     cells.append(
         _code(
-            """#@title 20) Inspect tracked result artifacts before committing
+            """#@title 21) Inspect tracked result artifacts before committing
 %cd {REPO_DIR}
 !find results -maxdepth 4 -type f | sort
 !git status --short
@@ -499,4 +537,3 @@ if __name__ == "__main__":
     out_path = Path("colab_origin_takehome.ipynb")
     out_path.write_text(json.dumps(build_notebook(), indent=2), encoding="utf-8")
     print(f"Wrote {out_path}")
-
