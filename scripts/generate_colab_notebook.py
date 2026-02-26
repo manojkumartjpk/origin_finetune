@@ -369,6 +369,24 @@ print("panels saved:", saved)
 
     cells.append(
         _code(
+            """#@title 15b) Create report panels (4 per dataset) for main run [recommended]
+%cd {REPO_DIR}
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+PANELS_PER_DATASET = 4  # @param {type:"integer"}
+
+!python scripts/make_report_panels.py \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --pred-dir outputs/eval_vis_{MAIN_RUN_ID} \
+  --out-dir outputs/report_panels_{MAIN_RUN_ID} \
+  --split test \
+  --group-col dataset_tag \
+  --per-group {PANELS_PER_DATASET}
+"""
+        )
+    )
+
+    cells.append(
+        _code(
             """#@title 16) Model size (runtime & footprint section) for main run
 %cd {REPO_DIR}
 MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
@@ -458,6 +476,135 @@ EXP_LR = 2e-5  # @param {type:"number"}
   --summary-json outputs/metrics/{EXP_RUN_ID}_test.json \
   --copy checkpoints/{EXP_RUN_ID}/best_metrics.json checkpoints/{EXP_RUN_ID}/train_history.json \
   --notes "Custom experiment; record changes in run_id and report notes"
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 19b) Create balanced-train manifest helper (equal images from both datasets for train split)
+%cd {REPO_DIR}
+BAL_MANIFEST = "data/processed/manifest_all_resplit_balanced_train_by_dataset.csv"  # @param {type:"string"}
+
+!python -m src.data.balance_manifest_by_group \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --out {BAL_MANIFEST} \
+  --split train \
+  --group-col dataset_tag \
+  --unit-col image_id \
+  --seed 42
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 19c) Planned Run 1: rd64-refined | 16 epochs | 512x512 | threshold 0.4
+%cd {REPO_DIR}
+RUN_ID = "clipseg_ft_e16_512_thr04_v1"  # @param {type:"string"}
+
+# Notes:
+# - threshold here affects validation metrics/checkpoint selection during training
+# - reduce batch size for 512 to fit T4; grad accumulation preserves effective batch
+!python -m src.train_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-name CIDAS/clipseg-rd64-refined \
+  --output-dir checkpoints/{RUN_ID} \
+  --epochs 16 \
+  --batch-size 2 \
+  --grad-accum-steps 2 \
+  --image-size 512 \
+  --lr 2e-5 \
+  --threshold 0.4
+
+!python -m src.eval_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-dir checkpoints/{RUN_ID} \
+  --split test \
+  --image-size 512 \
+  --threshold 0.4 \
+  --metrics-out outputs/metrics/{RUN_ID}_test.json
+
+!python scripts/archive_experiment.py \
+  --category experiments \
+  --run-id {RUN_ID} \
+  --summary-json outputs/metrics/{RUN_ID}_test.json \
+  --copy checkpoints/{RUN_ID}/best_metrics.json checkpoints/{RUN_ID}/train_history.json \
+  --notes "Run1: rd64-refined, 16 epochs, image_size=512, threshold=0.4 (val/test eval threshold)."
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 19d) Planned Run 2: rd64-refined | 4 epochs | 1024x1024 | threshold 0.4 (high-risk/OOM)
+%cd {REPO_DIR}
+RUN_ID = "clipseg_ft_e4_1024_thr04_v1"  # @param {type:"string"}
+
+# 1024x1024 on T4 is likely memory-heavy. Start with batch_size=1.
+!python -m src.train_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-name CIDAS/clipseg-rd64-refined \
+  --output-dir checkpoints/{RUN_ID} \
+  --epochs 4 \
+  --batch-size 1 \
+  --grad-accum-steps 4 \
+  --image-size 1024 \
+  --lr 2e-5 \
+  --threshold 0.4
+
+!python -m src.eval_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-dir checkpoints/{RUN_ID} \
+  --split test \
+  --batch-size 1 \
+  --image-size 1024 \
+  --threshold 0.4 \
+  --metrics-out outputs/metrics/{RUN_ID}_test.json
+
+!python scripts/archive_experiment.py \
+  --category experiments \
+  --run-id {RUN_ID} \
+  --summary-json outputs/metrics/{RUN_ID}_test.json \
+  --copy checkpoints/{RUN_ID}/best_metrics.json checkpoints/{RUN_ID}/train_history.json \
+  --notes "Run2: rd64-refined, 4 epochs, image_size=1024, threshold=0.4. High-risk memory experiment on T4; batch_size=1, grad_accum=4."
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 19e) Planned Run 3: rd64-refined | 8 epochs | 512x512 | threshold 0.4 | balanced train by dataset
+%cd {REPO_DIR}
+RUN_ID = "clipseg_ft_e8_512_thr04_baltrain_dataset_v1"  # @param {type:"string"}
+BAL_MANIFEST = "data/processed/manifest_all_resplit_balanced_train_by_dataset.csv"  # @param {type:"string"}
+
+# Make balanced manifest first (cell 19b), then run this cell.
+!python -m src.train_clipseg \
+  --manifest-csv {BAL_MANIFEST} \
+  --model-name CIDAS/clipseg-rd64-refined \
+  --output-dir checkpoints/{RUN_ID} \
+  --epochs 8 \
+  --batch-size 2 \
+  --grad-accum-steps 2 \
+  --image-size 512 \
+  --lr 2e-5 \
+  --threshold 0.4
+
+!python -m src.eval_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-dir checkpoints/{RUN_ID} \
+  --split test \
+  --image-size 512 \
+  --threshold 0.4 \
+  --metrics-out outputs/metrics/{RUN_ID}_test.json
+
+!python scripts/archive_experiment.py \
+  --category experiments \
+  --run-id {RUN_ID} \
+  --summary-json outputs/metrics/{RUN_ID}_test.json \
+  --copy checkpoints/{RUN_ID}/best_metrics.json checkpoints/{RUN_ID}/train_history.json \
+  --notes "Run3: rd64-refined, 8 epochs, image_size=512, threshold=0.4, train split balanced by dataset_tag (equal image_id count per dataset). Eval on full test manifest."
 """
         )
     )
