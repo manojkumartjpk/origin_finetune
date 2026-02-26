@@ -12,6 +12,7 @@ Colab-friendly pipeline to fine-tune a text-conditioned segmentation model (`CLI
 - CLIPSeg fine-tuning (`src/train_clipseg.py`)
 - Evaluation (mIoU / Dice + runtime) (`src/eval_clipseg.py`)
 - Inference -> required PNG masks (`src/infer_clipseg.py`)
+- Experiment artifact archiver for git-tracked results (`scripts/archive_experiment.py`)
 - Report template (`report/report_template.md`)
 
 ## Recommended workflow (Google Colab T4)
@@ -36,6 +37,21 @@ pip install -r requirements.txt
 ## Notes / assumptions
 - If Roboflow export contains bounding boxes instead of polygon masks, the converters fall back to box masks.
 - This should be clearly documented in the report because it affects the best possible segmentation quality.
+
+## Results Tracking (git-friendly)
+- Save only small artifacts in `results/` (metrics JSON, comparison tables, selected visuals).
+- Do **not** commit datasets, checkpoints, or full output dumps.
+- Use `scripts/archive_experiment.py` to copy summaries/selected visuals into `results/`.
+
+Example:
+```bash
+python scripts/archive_experiment.py \
+  --category baselines \
+  --run-id clipseg_zeroshot_v1 \
+  --summary-json outputs/metrics/clipseg_zeroshot_test.json \
+  --copy outputs/eval_vis_clipseg_zeroshot \
+  --notes "Zero-shot CLIPSeg on resplit test set"
+```
 
 ## Example commands
 ### Convert Roboflow exports

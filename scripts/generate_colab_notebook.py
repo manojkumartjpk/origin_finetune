@@ -19,24 +19,25 @@ def _code(text: str) -> dict:
 
 
 def build_notebook() -> dict:
-    cells = []
+    cells: list[dict] = []
+
     cells.append(
         _md(
-            """# Origin Take-home: Prompted Segmentation (Colab)
+            """# Origin Take-home: Prompted Segmentation (Structured Workflow)
 
-This notebook runs a full pipeline for the take-home assignment:
-- clone repo
-- install dependencies
-- download Roboflow datasets (when possible)
-- convert annotations to binary masks
-- fine-tune CLIPSeg
-- evaluate and export example masks
+This notebook is organized to preserve *git-trackable* results at each stage:
+1. Dataset prep
+2. CLIPSeg zero-shot baseline
+3. SAM3 baseline (optional, if access/setup works)
+4. CLIPSeg fine-tuning
+5. Improvement experiments (threshold/epochs/image size/etc.)
 
-## Important note (discovered during API inspection)
-Both linked projects are currently **object-detection** projects. `drywall-join-detect` has published versions and can be downloaded programmatically. `cracks-3ii36` currently reports **0 published versions**, so SDK download may fail and require **manual Roboflow export** (COCO preferred) or a versioned dataset link.
+Use `results/` for small artifacts only (metrics JSON, notes, selected visuals).
+Do **not** commit datasets/checkpoints.
 """
         )
     )
+
     cells.append(
         _code(
             """#@title 1) Mount Drive (optional but recommended)
@@ -47,12 +48,12 @@ if USE_DRIVE:
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 2) Set workspace paths and clone repo
+            """#@title 2) Clone / update repo
 from pathlib import Path
 
-# Replace with your GitHub repo after you push this project
 REPO_URL = "https://github.com/<your-username>/origin_finetune.git"  # @param {type:"string"}
 BRANCH = "main"  # @param {type:"string"}
 
@@ -72,10 +73,11 @@ else:
     !git clone -b {BRANCH} {REPO_URL} {REPO_DIR}
     %cd {REPO_DIR}
 
-print('Repo dir:', REPO_DIR)
+print("Repo dir:", REPO_DIR)
 """
         )
     )
+
     cells.append(
         _code(
             """#@title 3) Install dependencies
@@ -85,9 +87,19 @@ print('Repo dir:', REPO_DIR)
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 4) Enter Roboflow API key (hidden input)
+            """#@title 4) Create local artifact folders (tracked + untracked)
+%cd {REPO_DIR}
+!mkdir -p outputs/metrics outputs/eval_vis outputs/report_panels results/baselines results/finetuned results/experiments
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 5) Enter Roboflow API key (hidden input)
 import os
 from getpass import getpass
 
@@ -97,150 +109,205 @@ print('API key set:', bool(os.environ.get('ROBOFLOW_API_KEY')))
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 5) Try programmatic download from Roboflow
-# Expected outcome:
-# - Drywall dataset downloads successfully (latest version, COCO)
-# - Cracks dataset may fail because it has no published versions (versionless project)
-
+            """#@title 6) Download Roboflow datasets (forked versions)
 %cd {REPO_DIR}
 !mkdir -p data/raw
 
-RF_WORKSPACE = "manojs-workspace-mbjw9"  # @param {type:"string"}
-DRYWALL_PROJECT = "drywall-join-detect-jdsh1"  # @param {type:"string"}
-CRACKS_PROJECT = "cracks-3ii36-9iz5c"  # @param {type:"string"}
-
-!python -m src.data.download_roboflow \\
-    --api-key "$ROBOFLOW_API_KEY" \\
-    --workspace "manojs-workspace-mbjw9" \\
-    --project "drywall-join-detect-jdsh1" \\
-    --version 1 \\
-    --format coco \\
+!python -m src.data.download_roboflow \
+    --api-key "$ROBOFLOW_API_KEY" \
+    --workspace "manojs-workspace-mbjw9" \
+    --project "drywall-join-detect-jdsh1" \
+    --version 1 \
+    --format coco \
     --out-dir data/raw/drywall_join
 
-!python -m src.data.download_roboflow \\
-    --api-key "$ROBOFLOW_API_KEY" \\
-    --workspace "manojs-workspace-mbjw9" \\
-    --project "cracks-3ii36-9iz5c" \\
-    --version 1 \\
-    --format coco \\
+!python -m src.data.download_roboflow \
+    --api-key "$ROBOFLOW_API_KEY" \
+    --workspace "manojs-workspace-mbjw9" \
+    --project "cracks-3ii36-9iz5c" \
+    --version 1 \
+    --format coco \
     --out-dir data/raw/cracks
 """
         )
     )
-    cells.append(
-        _md(
-            """## If cracks download fails (likely)
-Use one of these options:
-1. In Roboflow UI, export **COCO** (or COCO Segmentation if available) and upload/unzip into `data/raw/cracks/`
-2. Ask Origin/recruiter for a downloadable versioned link or export ZIP for `cracks-3ii36`
 
-After that, continue with the next cells.
-"""
-        )
-    )
     cells.append(
         _code(
-            """#@title 6) (Optional) Unzip manually uploaded exports into expected folders
-import zipfile
-
-DRYWALL_ZIP = ""  # @param {type:"string"}
-CRACKS_ZIP = ""  # @param {type:"string"}
-
-for zip_path, out_dir in [(DRYWALL_ZIP, REPO_DIR / 'data/raw/drywall_join'), (CRACKS_ZIP, REPO_DIR / 'data/raw/cracks')]:
-    if zip_path:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            zf.extractall(out_dir)
-        print(f'Extracted {zip_path} -> {out_dir}')
-"""
-        )
-    )
-    cells.append(
-        _code(
-            """#@title 7) Inspect raw dataset folders and find annotation files
-%cd {REPO_DIR}
-!find data/raw -maxdepth 3 -type f | head -200
-"""
-        )
-    )
-    cells.append(
-        _code(
-            """#@title 8) Convert Roboflow COCO exports to unified binary-mask manifest
-            # Update --export-root if your uploaded folder names differ.
+            """#@title 7) Convert Roboflow COCO exports -> merged manifest -> label-aware resplit
 %cd {REPO_DIR}
 !mkdir -p data/processed
 
-!python -m src.data.prepare_from_roboflow_coco_export \\
-    --export-root data/raw/drywall_join \\
-    --dataset-tag drywall-join-detect \\
+!python -m src.data.prepare_from_roboflow_coco_export \
+    --export-root data/raw/drywall_join \
+    --dataset-tag drywall-join-detect \
     --out-dir data/processed
 
-!python -m src.data.prepare_from_roboflow_coco_export \\
-    --export-root data/raw/cracks \\
-    --dataset-tag cracks \\
+!python -m src.data.prepare_from_roboflow_coco_export \
+    --export-root data/raw/cracks \
+    --dataset-tag cracks \
     --out-dir data/processed
 
-!python -m src.data.merge_manifests \\
-    --inputs data/processed/manifest_drywall-join-detect.csv data/processed/manifest_cracks.csv \\
+!python -m src.data.merge_manifests \
+    --inputs data/processed/manifest_drywall-join-detect.csv data/processed/manifest_cracks.csv \
     --out data/processed/manifest_all.csv
 
-!python -m src.data.resplit_manifest \\
-    --manifest-csv data/processed/manifest_all.csv \\
-    --out data/processed/manifest_all_resplit.csv \\
+!python -m src.data.resplit_manifest \
+    --manifest-csv data/processed/manifest_all.csv \
+    --out data/processed/manifest_all_resplit.csv \
     --seed 42
 """
         )
     )
+
+    cells.append(
+        _md(
+            """## CLIPSeg Baseline (Zero-shot)
+Run this first and archive metrics to `results/baselines/` before any fine-tuning.
+"""
+        )
+    )
+
     cells.append(
         _code(
-            """#@title 9) Train CLIPSeg (T4-friendly baseline)
+            """#@title 8) Evaluate zero-shot CLIPSeg baseline
 %cd {REPO_DIR}
-!python -m src.train_clipseg \\
-    --manifest-csv data/processed/manifest_all_resplit.csv \\
-    --output-dir checkpoints/clipseg_takehome \\
-    --epochs 8 \\
-    --batch-size 4 \\
-    --image-size 352 \\
-    --lr 2e-5 \\
+!python -m src.eval_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-dir CIDAS/clipseg-rd64-refined \
+  --split test \
+  --save-vis-dir outputs/eval_vis_clipseg_zeroshot \
+  --max-vis 4 \
+  --metrics-out outputs/metrics/clipseg_zeroshot_test.json
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 9) Archive zero-shot CLIPSeg baseline artifacts into tracked results/
+%cd {REPO_DIR}
+!python scripts/archive_experiment.py \
+  --category baselines \
+  --run-id clipseg_zeroshot_v1 \
+  --summary-json outputs/metrics/clipseg_zeroshot_test.json \
+  --copy outputs/eval_vis_clipseg_zeroshot \
+  --notes "Zero-shot CLIPSeg baseline on manifest_all_resplit test split"
+"""
+        )
+    )
+
+    cells.append(
+        _md(
+            """## SAM3 Baseline (Optional / Stretch)
+Use this section only if SAM3 access + setup works in Colab. Keep CLIPSeg zero-shot and fine-tuned results as the primary deliverables.
+
+Suggested policy:
+- First run a **subset** (e.g. 50-100 test images)
+- Save metrics in the same JSON schema as `src.eval_clipseg.py`
+- Archive to `results/baselines/sam3_zeroshot_*`
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 10) SAM3 baseline placeholder (setup + notes)
+# Fill this section only if SAM3 access/setup works before the deadline.
+# Recommended outputs:
+# - outputs/metrics/sam3_zeroshot_test.json
+# - outputs/eval_vis_sam3_zeroshot/
+print("SAM3 baseline placeholder: implement only if setup succeeds within time budget.")
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 11) Archive SAM3 baseline (run only after SAM3 metrics exist)
+%cd {REPO_DIR}
+!python scripts/archive_experiment.py \
+  --category baselines \
+  --run-id sam3_zeroshot_v1 \
+  --summary-json outputs/metrics/sam3_zeroshot_test.json \
+  --copy outputs/eval_vis_sam3_zeroshot \
+  --notes "SAM3 zero-shot baseline (subset or full test; note exact scope in report)"
+"""
+        )
+    )
+
+    cells.append(
+        _md(
+            """## CLIPSeg Fine-tuning (Main Result)
+Use unique output directories per experiment to avoid overwriting.
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 12) Fine-tune CLIPSeg (main run)
+%cd {REPO_DIR}
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+FT_OUTPUT_DIR = f"checkpoints/{MAIN_RUN_ID}"
+print("FT_OUTPUT_DIR =", FT_OUTPUT_DIR)
+
+!python -m src.train_clipseg \
+    --manifest-csv data/processed/manifest_all_resplit.csv \
+    --output-dir {FT_OUTPUT_DIR} \
+    --epochs 8 \
+    --batch-size 4 \
+    --image-size 352 \
+    --lr 2e-5 \
     --grad-accum-steps 1
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 10) Evaluate on test split and save sample masks
+            """#@title 13) Evaluate fine-tuned CLIPSeg (main run)
 %cd {REPO_DIR}
-!python -m src.eval_clipseg \\
-    --manifest-csv data/processed/manifest_all_resplit.csv \\
-    --model-dir checkpoints/clipseg_takehome \\
-    --split test \\
-    --save-vis-dir outputs/eval_vis \\
-    --max-vis 4
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # must match previous cell if rerun separately
+FT_OUTPUT_DIR = f"checkpoints/{MAIN_RUN_ID}"
+FT_EVAL_VIS_DIR = f"outputs/eval_vis_{MAIN_RUN_ID}"
+FT_METRICS_OUT = f"outputs/metrics/{MAIN_RUN_ID}_test.json"
+
+!python -m src.eval_clipseg \
+  --manifest-csv data/processed/manifest_all_resplit.csv \
+  --model-dir {FT_OUTPUT_DIR} \
+  --split test \
+  --save-vis-dir {FT_EVAL_VIS_DIR} \
+  --max-vis 4 \
+  --metrics-out {FT_METRICS_OUT}
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 11) Create side-by-side visuals (orig | GT | pred) for report
+            """#@title 14) Create side-by-side report panels (orig | GT | pred) for main run
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 
 repo = REPO_DIR
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
 manifest = pd.read_csv(repo / 'data/processed/manifest_all_resplit.csv')
 test_df = manifest[manifest['split'] == 'test'].copy()
-vis_dir = repo / 'outputs' / 'report_panels'
-vis_dir.mkdir(parents=True, exist_ok=True)
+pred_dir = repo / 'outputs' / f'eval_vis_{MAIN_RUN_ID}'
+panel_dir = repo / 'outputs' / f'report_panels_{MAIN_RUN_ID}'
+panel_dir.mkdir(parents=True, exist_ok=True)
 
-pred_dir = repo / 'outputs' / 'eval_vis'
 saved = 0
 for _, row in test_df.iterrows():
     image_id = str(row['image_id'])
-    pred_path = pred_dir / f\"{image_id}__pred.png\"
-    gt_path = pred_dir / f\"{image_id}__gt.png\"
+    pred_path = pred_dir / f"{image_id}__pred.png"
+    gt_path = pred_dir / f"{image_id}__gt.png"
     if not pred_path.exists() or not gt_path.exists():
         continue
     img = Image.open(row['image_path']).convert('RGB')
@@ -251,47 +318,167 @@ for _, row in test_df.iterrows():
     axes[0].imshow(img); axes[0].set_title('Original'); axes[0].axis('off')
     axes[1].imshow(gt, cmap='gray'); axes[1].set_title('GT'); axes[1].axis('off')
     axes[2].imshow(pred, cmap='gray'); axes[2].set_title('Pred'); axes[2].axis('off')
-    fig.suptitle(f\"{image_id} | {row['label']}\")
-    out = vis_dir / f\"{image_id}__panel.png\"
+    fig.suptitle(f"{image_id} | {row['label']}")
+    out = panel_dir / f"{image_id}__panel.png"
     fig.tight_layout()
     fig.savefig(out, dpi=150, bbox_inches='tight')
     plt.close(fig)
-    print('saved', out)
+    print("saved", out)
     saved += 1
     if saved >= 4:
         break
-print('panels saved:', saved)
+print("panels saved:", saved)
 """
         )
     )
+
     cells.append(
         _code(
-            """#@title 12) Example inference for required output mask naming
+            """#@title 15) Model size (runtime & footprint section) for main run
 %cd {REPO_DIR}
-!python - <<'PY'
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+!du -sh checkpoints/{MAIN_RUN_ID}
+!du -sh checkpoints/{MAIN_RUN_ID}/*
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 16) Archive fine-tuned CLIPSeg main run artifacts into tracked results/
+%cd {REPO_DIR}
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+!python scripts/archive_experiment.py \
+  --category finetuned \
+  --run-id {MAIN_RUN_ID} \
+  --summary-json outputs/metrics/{MAIN_RUN_ID}_test.json \
+  --copy checkpoints/{MAIN_RUN_ID}/best_metrics.json checkpoints/{MAIN_RUN_ID}/train_history.json outputs/report_panels_{MAIN_RUN_ID} \
+  --notes "Main fine-tuned CLIPSeg run (full fine-tuning, 8 epochs, image_size=352)"
+"""
+        )
+    )
+
+    cells.append(
+        _md(
+            """## Improvement Experiments (run one at a time, archive each)
+Recommended order:
+1. Threshold sweep (cheap)
+2. More epochs (12/16)
+3. Larger image size (512, smaller batch)
+4. Class balancing / weighting
+5. Prompt augmentation expansion
+6. Post-processing
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 17) Threshold sweep helper on main checkpoint (cheap improvement test)
+%cd {REPO_DIR}
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"  # @param {type:"string"}
+for thr in [0.3, 0.4, 0.5, 0.6]:
+    out_json = f"outputs/metrics/{MAIN_RUN_ID}_test_thr{str(thr).replace('.', '')}.json"
+    print("\\n=== threshold", thr, "===")
+    !python -m src.eval_clipseg \
+      --manifest-csv data/processed/manifest_all_resplit.csv \
+      --model-dir checkpoints/{MAIN_RUN_ID} \
+      --split test \
+      --threshold {thr} \
+      --metrics-out {out_json}
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 18) Custom CLIPSeg experiment template (new checkpoint dir each time)
+%cd {REPO_DIR}
+EXP_RUN_ID = "clipseg_ft_e12_352_trial1"  # @param {type:"string"}
+EXP_EPOCHS = 12  # @param {type:"integer"}
+EXP_IMAGE_SIZE = 352  # @param {type:"integer"}
+EXP_BATCH = 4  # @param {type:"integer"}
+EXP_LR = 2e-5  # @param {type:"number"}
+
+!python -m src.train_clipseg \
+    --manifest-csv data/processed/manifest_all_resplit.csv \
+    --output-dir checkpoints/{EXP_RUN_ID} \
+    --epochs {EXP_EPOCHS} \
+    --batch-size {EXP_BATCH} \
+    --image-size {EXP_IMAGE_SIZE} \
+    --lr {EXP_LR}
+
+!python -m src.eval_clipseg \
+    --manifest-csv data/processed/manifest_all_resplit.csv \
+    --model-dir checkpoints/{EXP_RUN_ID} \
+    --split test \
+    --metrics-out outputs/metrics/{EXP_RUN_ID}_test.json
+
+!python scripts/archive_experiment.py \
+  --category experiments \
+  --run-id {EXP_RUN_ID} \
+  --summary-json outputs/metrics/{EXP_RUN_ID}_test.json \
+  --copy checkpoints/{EXP_RUN_ID}/best_metrics.json checkpoints/{EXP_RUN_ID}/train_history.json \
+  --notes "Custom experiment; record changes in run_id and report notes"
+"""
+        )
+    )
+
+    cells.append(
+        _code(
+            """#@title 19) Example inference for required output mask naming (main run)
+%cd {REPO_DIR}
 import pandas as pd
+from pathlib import Path
+
+MAIN_RUN_ID = "clipseg_ft_e8_352_v1"
 m = pd.read_csv('data/processed/manifest_all_resplit.csv')
 row = m.iloc[0]
 print('Example image path:', row['image_path'])
 print('Example label:', row['label'])
-PY
 
-# Then run one of these after replacing <IMAGE_PATH>:
-# !python -m src.infer_clipseg --model-dir checkpoints/clipseg_takehome --image <IMAGE_PATH> --prompt \"segment crack\" --out-dir outputs/pred_masks
-# !python -m src.infer_clipseg --model-dir checkpoints/clipseg_takehome --image <IMAGE_PATH> --prompt \"segment taping area\" --out-dir outputs/pred_masks
+# Uncomment one:
+# !python -m src.infer_clipseg --model-dir checkpoints/{MAIN_RUN_ID} --image "{row['image_path']}" --prompt "segment crack" --out-dir outputs/pred_masks
+# !python -m src.infer_clipseg --model-dir checkpoints/{MAIN_RUN_ID} --image "{row['image_path']}" --prompt "segment taping area" --out-dir outputs/pred_masks
 """
         )
     )
+
+    cells.append(
+        _code(
+            """#@title 20) Inspect tracked result artifacts before committing
+%cd {REPO_DIR}
+!find results -maxdepth 4 -type f | sort
+!git status --short
+"""
+        )
+    )
+
     cells.append(
         _md(
-            """## Submission checklist
-- Push this repo to GitHub and include the link
-- Fill `report/report_template.md` with metrics, visuals, failure cases, runtime, and settings
-- Export the report to PDF
-- Attach both in the email reply thread
+            """## Optional: Commit/Pull/Push from Colab
+If you want to push result artifacts from Colab, authenticate carefully (PAT/token). Prefer committing only notebook/code/`results/` files.
 
-## Security note
-You shared a Roboflow API key in chat. Rotate/revoke it after your assignment is submitted.
+If you prefer safer workflow:
+- finish runs in Colab
+- copy/pull changed repo files locally
+- commit/push from local machine
+"""
+        )
+    )
+
+    cells.append(
+        _md(
+            """## Submission Checklist
+- GitHub link (codebase)
+- Colab link (shareable)
+- PDF report with:
+  - Methodology
+  - Data-preparation
+  - Results (metrics table + visuals + runtime/footprint)
+  - Failure cases + potential solutions
+
+Security note: rotate/revoke your Roboflow API key after submission.
 """
         )
     )
@@ -312,3 +499,4 @@ if __name__ == "__main__":
     out_path = Path("colab_origin_takehome.ipynb")
     out_path.write_text(json.dumps(build_notebook(), indent=2), encoding="utf-8")
     print(f"Wrote {out_path}")
+

@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--save-vis-dir", default=None)
     parser.add_argument("--max-vis", type=int, default=4)
+    parser.add_argument("--metrics-out", default=None, help="Optional path to save metrics JSON")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -105,9 +106,12 @@ def main():
         "avg_inference_time_sec_per_image": sum(infer_times) / max(len(infer_times), 1),
         "model_dir": str(Path(args.model_dir).resolve()),
     }
+    if args.metrics_out:
+        out_path = Path(args.metrics_out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
     main()
-
