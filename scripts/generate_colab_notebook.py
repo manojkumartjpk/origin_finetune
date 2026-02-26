@@ -113,16 +113,16 @@ CRACKS_PROJECT = "cracks-3ii36-9iz5c"  # @param {type:"string"}
 
 !python -m src.data.download_roboflow \\
     --api-key "$ROBOFLOW_API_KEY" \\
-    --workspace {RF_WORKSPACE} \\
-    --project {DRYWALL_PROJECT} \\
+    --workspace "manojs-workspace-mbjw9" \\
+    --project "drywall-join-detect-jdsh1" \\
     --version 1 \\
     --format coco \\
     --out-dir data/raw/drywall_join
 
 !python -m src.data.download_roboflow \\
     --api-key "$ROBOFLOW_API_KEY" \\
-    --workspace {RF_WORKSPACE} \\
-    --project {CRACKS_PROJECT} \\
+    --workspace "manojs-workspace-mbjw9" \\
+    --project "cracks-3ii36-9iz5c" \\
     --version 1 \\
     --format coco \\
     --out-dir data/raw/cracks
