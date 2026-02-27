@@ -1,7 +1,7 @@
 {
   "run_id": "clipseg_ft_e12_352_trial1",
   "category": "experiments",
-  "created_at": "2026-02-26 09:35:08",
+  "created_at": "2026-02-27 06:33:02",
   "summary_json": "results/experiments/clipseg_ft_e12_352_trial1/metrics.json",
   "copied": [
     "results/experiments/clipseg_ft_e12_352_trial1/best_metrics.json",
