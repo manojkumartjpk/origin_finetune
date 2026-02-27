@@ -1,22 +1,22 @@
 {
   "split": "test",
   "overall": {
-    "miou": 0.44367755958932936,
-    "dice": 0.5914980825902644,
+    "miou": 0.41487974227370594,
+    "dice": 0.5617721273430023,
     "n": 959
   },
   "per_label": {
     "taping_area": {
-      "miou": 0.4951186750351993,
-      "dice": 0.6531331279114181,
+      "miou": 0.411500199801392,
+      "dice": 0.5674514620035302,
       "n": 153
     },
     "crack": {
-      "miou": 0.433912682835957,
-      "dice": 0.5797981298183829,
+      "miou": 0.41552126832614267,
+      "dice": 0.5606940402424306,
       "n": 806
     }
   },
-  "avg_inference_time_sec_per_image": 0.03845946190832403,
-  "model_dir": "/content/drive/MyDrive/origin_takehome/origin_finetune/checkpoints/clipseg_ft_e8_352_v1"
+  "avg_inference_time_sec_per_image": 0.00875719840055606,
+  "model_dir": "/content/origin_finetune/checkpoints/clipseg_ft_e8_352_v1"
 }
