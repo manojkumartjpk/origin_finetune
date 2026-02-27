@@ -55,7 +55,7 @@ if USE_DRIVE:
             """#@title 2) Clone / update repo
 from pathlib import Path
 
-REPO_URL = "https://github.com/<your-username>/origin_finetune.git"  # @param {type:"string"}
+REPO_URL = "https://github.com/manojkumartjpk/origin_finetune.git"  # @param {type:"string"}
 BRANCH = "main"  # @param {type:"string"}
 
 BASE_DIR = Path('/content')
@@ -192,6 +192,11 @@ Run this first and archive metrics to `results/baselines/` before any fine-tunin
   --manifest-csv data/processed/manifest_all_resplit.csv \
   --model-dir CIDAS/clipseg-rd64-refined \
   --split test \
+  --batch-size 16 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --no-processor-resize \
   --save-vis-dir outputs/eval_vis_clipseg_zeroshot \
   --max-vis 4 \
   --metrics-out outputs/metrics/clipseg_zeroshot_test.json
@@ -294,10 +299,16 @@ print("FT_OUTPUT_DIR =", FT_OUTPUT_DIR)
     --manifest-csv data/processed/manifest_all_resplit.csv \
     --output-dir checkpoints/clipseg_ft_e8_352_v1 \
     --epochs 8 \
-    --batch-size 4 \
+    --batch-size 16 \
     --image-size 352 \
     --lr 2e-5 \
-    --grad-accum-steps 1
+    --grad-accum-steps 1 \
+    --num-workers 8 \
+    --persistent-workers \
+    --prefetch-factor 4 \
+    --tf32 \
+    --amp-dtype bf16 \
+    --no-processor-resize
 """
         )
     )
@@ -316,6 +327,11 @@ FT_METRICS_OUT = f"outputs/metrics/{MAIN_RUN_ID}_test.json"
   --manifest-csv data/processed/manifest_all_resplit.csv \
   --model-dir checkpoints/clipseg_ft_e8_352_v1 \
   --split test \
+  --batch-size 16 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --no-processor-resize \
   --save-vis-dir outputs/eval_vis_clipseg_ft_e8_352_v1 \
   --max-vis 4 \
   --metrics-out outputs/metrics/clipseg_ft_e8_352_v1_test.json
@@ -441,6 +457,11 @@ for thr in [0.3, 0.4, 0.5, 0.6]:
       --model-dir checkpoints/{MAIN_RUN_ID} \
       --split test \
       --threshold {thr} \
+      --batch-size 16 \
+      --num-workers 8 \
+      --persistent-workers \
+      --prefetch-factor 4 \
+      --no-processor-resize \
       --metrics-out {out_json}
 """
         )
@@ -453,8 +474,9 @@ for thr in [0.3, 0.4, 0.5, 0.6]:
 EXP_RUN_ID = "clipseg_ft_e12_352_trial1"  # @param {type:"string"}
 EXP_EPOCHS = 12  # @param {type:"integer"}
 EXP_IMAGE_SIZE = 352  # @param {type:"integer"}
-EXP_BATCH = 4  # @param {type:"integer"}
+EXP_BATCH = 16  # @param {type:"integer"}
 EXP_LR = 2e-5  # @param {type:"number"}
+EXP_NUM_WORKERS = 8  # @param {type:"integer"}
 
 # If shell interpolation fails in your Colab, replace {EXP_*} placeholders with literals.
 !python -m src.train_clipseg \
@@ -463,12 +485,23 @@ EXP_LR = 2e-5  # @param {type:"number"}
     --epochs {EXP_EPOCHS} \
     --batch-size {EXP_BATCH} \
     --image-size {EXP_IMAGE_SIZE} \
-    --lr {EXP_LR}
+    --lr {EXP_LR} \
+    --num-workers {EXP_NUM_WORKERS} \
+    --persistent-workers \
+    --prefetch-factor 4 \
+    --tf32 \
+    --amp-dtype bf16 \
+    --no-processor-resize
 
 !python -m src.eval_clipseg \
     --manifest-csv data/processed/manifest_all_resplit.csv \
     --model-dir checkpoints/{EXP_RUN_ID} \
     --split test \
+    --batch-size {EXP_BATCH} \
+    --num-workers {EXP_NUM_WORKERS} \
+    --persistent-workers \
+    --prefetch-factor 4 \
+    --no-processor-resize \
     --metrics-out outputs/metrics/{EXP_RUN_ID}_test.json
 
 !python scripts/archive_experiment.py \
