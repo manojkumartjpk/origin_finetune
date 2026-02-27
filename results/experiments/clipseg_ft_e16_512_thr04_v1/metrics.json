@@ -1,0 +1,22 @@
+{
+  "split": "test",
+  "overall": {
+    "miou": 0.4701039201797461,
+    "dice": 0.615994275613304,
+    "n": 959
+  },
+  "per_label": {
+    "taping_area": {
+      "miou": 0.5193730758783085,
+      "dice": 0.6717529459521662,
+      "n": 153
+    },
+    "crack": {
+      "miou": 0.46075133851488254,
+      "dice": 0.6054098133777631,
+      "n": 806
+    }
+  },
+  "avg_inference_time_sec_per_image": 0.023744341082291166,
+  "model_dir": "/content/origin_finetune/checkpoints/clipseg_ft_e16_512_thr04_v1"
+}

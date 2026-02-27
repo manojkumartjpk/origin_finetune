@@ -1,0 +1,1 @@
+Run1: rd64-refined, 16 epochs, image_size=512, threshold=0.4 (val/test eval threshold).
