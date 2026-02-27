@@ -1,0 +1,22 @@
+{
+  "split": "test",
+  "overall": {
+    "miou": 0.40957121191799395,
+    "dice": 0.5555112001223099,
+    "n": 959
+  },
+  "per_label": {
+    "taping_area": {
+      "miou": 0.42996970157510317,
+      "dice": 0.5866037644689379,
+      "n": 153
+    },
+    "crack": {
+      "miou": 0.4056990420451184,
+      "dice": 0.5496090135900096,
+      "n": 806
+    }
+  },
+  "avg_inference_time_sec_per_image": 0.02190896627464854,
+  "model_dir": "/content/origin_finetune/checkpoints/clipseg_ft_e8_512_thr04_baltrain_dataset_v1"
+}

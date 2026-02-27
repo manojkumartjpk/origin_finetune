@@ -1,0 +1,85 @@
+{
+  "args": {
+    "manifest_csv": "data/processed/manifest_all_resplit_balanced_train_by_dataset.csv",
+    "prompts_json": "configs/prompts.json",
+    "model_name": "CIDAS/clipseg-rd64-refined",
+    "output_dir": "checkpoints/clipseg_ft_e8_512_thr04_baltrain_dataset_v1",
+    "epochs": 8,
+    "batch_size": 8,
+    "lr": 2e-05,
+    "weight_decay": 0.0001,
+    "num_workers": 8,
+    "image_size": 512,
+    "threshold": 0.4,
+    "seed": 42,
+    "grad_accum_steps": 1,
+    "max_grad_norm": 1.0,
+    "pin_memory": false,
+    "no_pin_memory": false,
+    "prefetch_factor": 4,
+    "persistent_workers": true,
+    "tf32": true,
+    "amp_dtype": "bf16",
+    "no_processor_resize": true
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.44614180480064797,
+      "val_loss": 0.3135786576659296,
+      "val_miou": 0.30036814455362854,
+      "val_dice": 0.4228112871913401
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.3883104295957656,
+      "val_loss": 0.28466610856245356,
+      "val_miou": 0.3295117651806495,
+      "val_dice": 0.45896258732471185
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.36266145652749626,
+      "val_loss": 0.2732360931055033,
+      "val_miou": 0.34914252790379374,
+      "val_dice": 0.4850434357288735
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.3415565715283573,
+      "val_loss": 0.26611846271661227,
+      "val_miou": 0.3662401356254092,
+      "val_dice": 0.5069175365075687
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.3283050811591269,
+      "val_loss": 0.2602022345914721,
+      "val_miou": 0.3727723763855116,
+      "val_dice": 0.5150707801473414
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.3147231202666499,
+      "val_loss": 0.255044213136452,
+      "val_miou": 0.38186846409063,
+      "val_dice": 0.5259839911052728
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.3034717647635302,
+      "val_loss": 0.2506498722106778,
+      "val_miou": 0.38939908937024176,
+      "val_dice": 0.5339729870535387
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.29427915636230917,
+      "val_loss": 0.2474292823131,
+      "val_miou": 0.39410279265027454,
+      "val_dice": 0.5386528675143056
+    }
+  ],
+  "train_time_seconds": 201.84580087661743,
+  "best_score": 0.46637783008229006
+}

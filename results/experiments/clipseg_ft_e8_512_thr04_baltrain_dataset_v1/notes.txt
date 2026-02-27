@@ -1,0 +1,1 @@
+Run3: rd64-refined, 8 epochs, image_size=512, threshold=0.4, train split balanced by dataset_tag (equal image_id count per dataset). Eval on full test manifest.
