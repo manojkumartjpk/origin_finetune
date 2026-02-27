@@ -12,7 +12,7 @@
       "n": 100
     }
   },
-  "avg_inference_time_sec_per_image": 2.036387966559978,
+  "avg_inference_time_sec_per_image": 0.418304771330005,
   "model_dir": "facebook/sam3",
   "threshold": 0.5,
   "mask_threshold": 0.5,

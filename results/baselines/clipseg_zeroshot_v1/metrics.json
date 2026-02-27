@@ -1,22 +1,22 @@
 {
   "split": "test",
   "overall": {
-    "miou": 0.18595437437700302,
-    "dice": 0.275359826092672,
+    "miou": 0.18598306795592348,
+    "dice": 0.27541148262747883,
     "n": 959
   },
   "per_label": {
     "taping_area": {
-      "miou": 0.020135648532749045,
-      "dice": 0.03037686857174644,
+      "miou": 0.020138229035206883,
+      "dice": 0.030378802442826317,
       "n": 153
     },
     "crack": {
-      "miou": 0.21743113002733905,
-      "dice": 0.3218640351506144,
+      "miou": 0.21746478055501733,
+      "dice": 0.3219251303548385,
       "n": 806
     }
   },
-  "avg_inference_time_sec_per_image": 0.03599483709722019,
-  "model_dir": "/content/drive/MyDrive/origin_takehome/origin_finetune/CIDAS/clipseg-rd64-refined"
+  "avg_inference_time_sec_per_image": 0.008907159237916917,
+  "model_dir": "/content/origin_finetune/CIDAS/clipseg-rd64-refined"
 }

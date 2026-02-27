@@ -1,7 +1,7 @@
 {
   "run_id": "clipseg_zeroshot_v1",
   "category": "baselines",
-  "created_at": "2026-02-26 08:07:14",
+  "created_at": "2026-02-27 06:21:08",
   "summary_json": "results/baselines/clipseg_zeroshot_v1/metrics.json",
   "copied": [
     "results/baselines/clipseg_zeroshot_v1/eval_vis_clipseg_zeroshot"
