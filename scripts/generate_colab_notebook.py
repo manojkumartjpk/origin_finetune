@@ -40,8 +40,9 @@ Do **not** commit datasets/checkpoints.
 
     cells.append(
         _code(
-            """#@title 1) Mount Drive (optional but recommended)
-USE_DRIVE = True
+            """#@title 1) Mount Drive (optional)
+# Keep this False for faster training I/O. Use Drive mainly for persistence.
+USE_DRIVE = False
 if USE_DRIVE:
     from google.colab import drive
     drive.mount('/content/drive')
@@ -505,17 +506,23 @@ RUN_ID = "clipseg_ft_e16_512_thr04_v1"  # @param {type:"string"}
 
 # Notes:
 # - threshold here affects validation metrics/checkpoint selection during training
-# - reduce batch size for 512 to fit T4; grad accumulation preserves effective batch
+# - optimized for A100 throughput; reduce batch if you hit OOM
 !python -m src.train_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
   --model-name CIDAS/clipseg-rd64-refined \
   --output-dir checkpoints/{RUN_ID} \
   --epochs 16 \
-  --batch-size 2 \
-  --grad-accum-steps 2 \
+  --batch-size 8 \
+  --grad-accum-steps 1 \
   --image-size 512 \
   --lr 2e-5 \
-  --threshold 0.4
+  --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --tf32 \
+  --amp-dtype bf16 \
+  --no-processor-resize
 
 !python -m src.eval_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
@@ -523,6 +530,10 @@ RUN_ID = "clipseg_ft_e16_512_thr04_v1"  # @param {type:"string"}
   --split test \
   --image-size 512 \
   --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --no-processor-resize \
   --metrics-out outputs/metrics/{RUN_ID}_test.json
 
 !python scripts/archive_experiment.py \
@@ -541,25 +552,35 @@ RUN_ID = "clipseg_ft_e16_512_thr04_v1"  # @param {type:"string"}
 %cd {REPO_DIR}
 RUN_ID = "clipseg_ft_e4_1024_thr04_v1"  # @param {type:"string"}
 
-# 1024x1024 on T4 is likely memory-heavy. Start with batch_size=1.
+# 1024x1024 remains memory-heavy. On A100 start at batch_size=2; if OOM, drop to 1.
 !python -m src.train_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
   --model-name CIDAS/clipseg-rd64-refined \
   --output-dir checkpoints/{RUN_ID} \
   --epochs 4 \
-  --batch-size 1 \
-  --grad-accum-steps 4 \
+  --batch-size 2 \
+  --grad-accum-steps 1 \
   --image-size 1024 \
   --lr 2e-5 \
-  --threshold 0.4
+  --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --tf32 \
+  --amp-dtype bf16 \
+  --no-processor-resize
 
 !python -m src.eval_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
   --model-dir checkpoints/{RUN_ID} \
   --split test \
-  --batch-size 1 \
+  --batch-size 2 \
   --image-size 1024 \
   --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --no-processor-resize \
   --metrics-out outputs/metrics/{RUN_ID}_test.json
 
 !python scripts/archive_experiment.py \
@@ -567,7 +588,7 @@ RUN_ID = "clipseg_ft_e4_1024_thr04_v1"  # @param {type:"string"}
   --run-id {RUN_ID} \
   --summary-json outputs/metrics/{RUN_ID}_test.json \
   --copy checkpoints/{RUN_ID}/best_metrics.json checkpoints/{RUN_ID}/train_history.json \
-  --notes "Run2: rd64-refined, 4 epochs, image_size=1024, threshold=0.4. High-risk memory experiment on T4; batch_size=1, grad_accum=4."
+  --notes "Run2: rd64-refined, 4 epochs, image_size=1024, threshold=0.4. A100-tuned defaults (batch_size=2, grad_accum=1); reduce batch if OOM."
 """
         )
     )
@@ -585,11 +606,17 @@ BAL_MANIFEST = "data/processed/manifest_all_resplit_balanced_train_by_dataset.cs
   --model-name CIDAS/clipseg-rd64-refined \
   --output-dir checkpoints/{RUN_ID} \
   --epochs 8 \
-  --batch-size 2 \
-  --grad-accum-steps 2 \
+  --batch-size 8 \
+  --grad-accum-steps 1 \
   --image-size 512 \
   --lr 2e-5 \
-  --threshold 0.4
+  --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --tf32 \
+  --amp-dtype bf16 \
+  --no-processor-resize
 
 !python -m src.eval_clipseg \
   --manifest-csv data/processed/manifest_all_resplit.csv \
@@ -597,6 +624,10 @@ BAL_MANIFEST = "data/processed/manifest_all_resplit_balanced_train_by_dataset.cs
   --split test \
   --image-size 512 \
   --threshold 0.4 \
+  --num-workers 8 \
+  --persistent-workers \
+  --prefetch-factor 4 \
+  --no-processor-resize \
   --metrics-out outputs/metrics/{RUN_ID}_test.json
 
 !python scripts/archive_experiment.py \

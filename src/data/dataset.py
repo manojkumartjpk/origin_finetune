@@ -63,7 +63,7 @@ class PromptSegmentationDataset(Dataset):
         )
 
 
-def build_collate_fn(processor, image_size: int):
+def build_collate_fn(processor, image_size: int, processor_resize: bool = True):
     def collate(samples: list[Sample]):
         images = [s.image.resize((image_size, image_size), resample=Image.BILINEAR) for s in samples]
         prompts = [s.prompt for s in samples]
@@ -72,6 +72,7 @@ def build_collate_fn(processor, image_size: int):
             images=images,
             padding="max_length",
             return_tensors="pt",
+            do_resize=processor_resize,
         )
 
         masks = []

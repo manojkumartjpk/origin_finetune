@@ -74,23 +74,56 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--grad-accum-steps", type=int, default=1)
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
+    parser.add_argument("--pin-memory", action="store_true")
+    parser.add_argument("--no-pin-memory", action="store_true")
+    parser.add_argument("--prefetch-factor", type=int, default=4)
+    parser.add_argument("--persistent-workers", action="store_true")
+    parser.add_argument("--tf32", action="store_true")
+    parser.add_argument("--amp-dtype", choices=["fp16", "bf16"], default="bf16")
+    parser.add_argument("--no-processor-resize", action="store_true")
     args = parser.parse_args()
 
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_amp = device.type == "cuda"
+    pin_memory = (device.type == "cuda") and (not args.no_pin_memory)
+    if args.pin_memory:
+        pin_memory = True
+
+    if args.tf32 and device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.set_float32_matmul_precision("high")
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
 
     processor = CLIPSegProcessor.from_pretrained(args.model_name)
     model = CLIPSegForImageSegmentation.from_pretrained(args.model_name).to(device)
 
     train_ds = PromptSegmentationDataset(args.manifest_csv, args.prompts_json, split="train", deterministic_eval_prompt=False)
     val_ds = PromptSegmentationDataset(args.manifest_csv, args.prompts_json, split="val", deterministic_eval_prompt=True)
-    collate_fn = build_collate_fn(processor, args.image_size)
+    collate_fn = build_collate_fn(processor, args.image_size, processor_resize=not args.no_processor_resize)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, collate_fn=collate_fn)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, collate_fn=collate_fn)
+    dataloader_kwargs = {
+        "num_workers": args.num_workers,
+        "pin_memory": pin_memory,
+        "collate_fn": collate_fn,
+    }
+    if args.num_workers > 0:
+        dataloader_kwargs["persistent_workers"] = args.persistent_workers
+        dataloader_kwargs["prefetch_factor"] = args.prefetch_factor
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, **dataloader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **dataloader_kwargs)
+
+    optimizer_kwargs = {"lr": args.lr, "weight_decay": args.weight_decay}
+    if device.type == "cuda":
+        optimizer_kwargs["fused"] = True
+    try:
+        optimizer = torch.optim.AdamW(model.parameters(), **optimizer_kwargs)
+    except TypeError:
+        optimizer_kwargs.pop("fused", None)
+        optimizer = torch.optim.AdamW(model.parameters(), **optimizer_kwargs)
     scaler = GradScaler(enabled=use_amp)
 
     out_dir = Path(args.output_dir)
@@ -99,6 +132,7 @@ def main():
     history = []
 
     start_train = time.time()
+    amp_dtype = torch.bfloat16 if args.amp_dtype == "bf16" else torch.float16
     for epoch in range(1, args.epochs + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
@@ -107,12 +141,12 @@ def main():
 
         pbar = tqdm(train_loader, desc=f"Train {epoch}/{args.epochs}")
         for step, batch in enumerate(pbar, start=1):
-            pixel_values = batch["pixel_values"].to(device)
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            masks = batch["masks"].to(device)
+            pixel_values = batch["pixel_values"].to(device, non_blocking=pin_memory)
+            input_ids = batch["input_ids"].to(device, non_blocking=pin_memory)
+            attention_mask = batch["attention_mask"].to(device, non_blocking=pin_memory)
+            masks = batch["masks"].to(device, non_blocking=pin_memory)
 
-            with autocast(enabled=use_amp):
+            with autocast(enabled=use_amp, dtype=amp_dtype):
                 outputs = model(pixel_values=pixel_values, input_ids=input_ids, attention_mask=attention_mask)
                 logits = outputs.logits.unsqueeze(1) if outputs.logits.ndim == 3 else outputs.logits
                 if logits.shape[-2:] != masks.shape[-2:]:

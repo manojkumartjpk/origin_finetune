@@ -31,16 +31,32 @@ def main():
     parser.add_argument("--save-vis-dir", default=None)
     parser.add_argument("--max-vis", type=int, default=4)
     parser.add_argument("--metrics-out", default=None, help="Optional path to save metrics JSON")
+    parser.add_argument("--pin-memory", action="store_true")
+    parser.add_argument("--no-pin-memory", action="store_true")
+    parser.add_argument("--prefetch-factor", type=int, default=4)
+    parser.add_argument("--persistent-workers", action="store_true")
+    parser.add_argument("--no-processor-resize", action="store_true")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pin_memory = (device.type == "cuda") and (not args.no_pin_memory)
+    if args.pin_memory:
+        pin_memory = True
     processor = CLIPSegProcessor.from_pretrained(args.model_dir)
     model = CLIPSegForImageSegmentation.from_pretrained(args.model_dir).to(device)
     model.eval()
 
     ds = PromptSegmentationDataset(args.manifest_csv, args.prompts_json, split=args.split, deterministic_eval_prompt=True)
-    collate_fn = build_collate_fn(processor, args.image_size)
-    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, collate_fn=collate_fn)
+    collate_fn = build_collate_fn(processor, args.image_size, processor_resize=not args.no_processor_resize)
+    dataloader_kwargs = {
+        "num_workers": args.num_workers,
+        "pin_memory": pin_memory,
+        "collate_fn": collate_fn,
+    }
+    if args.num_workers > 0:
+        dataloader_kwargs["persistent_workers"] = args.persistent_workers
+        dataloader_kwargs["prefetch_factor"] = args.prefetch_factor
+    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, **dataloader_kwargs)
 
     per_label = defaultdict(lambda: {"iou_sum": 0.0, "dice_sum": 0.0, "n": 0})
     overall = {"iou_sum": 0.0, "dice_sum": 0.0, "n": 0}
@@ -51,10 +67,10 @@ def main():
 
     infer_times = []
     for batch in tqdm(loader, desc=f"Eval {args.split}"):
-        pixel_values = batch["pixel_values"].to(device)
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        masks = batch["masks"].to(device)
+        pixel_values = batch["pixel_values"].to(device, non_blocking=pin_memory)
+        input_ids = batch["input_ids"].to(device, non_blocking=pin_memory)
+        attention_mask = batch["attention_mask"].to(device, non_blocking=pin_memory)
+        masks = batch["masks"].to(device, non_blocking=pin_memory)
 
         t0 = time.perf_counter()
         outputs = model(pixel_values=pixel_values, input_ids=input_ids, attention_mask=attention_mask)
