@@ -1,0 +1,1 @@
+Run2: rd64-refined, 4 epochs, image_size=1024, threshold=0.4. A100-tuned defaults (batch_size=2, grad_accum=1); reduce batch if OOM.

@@ -1,0 +1,57 @@
+{
+  "args": {
+    "manifest_csv": "data/processed/manifest_all_resplit.csv",
+    "prompts_json": "configs/prompts.json",
+    "model_name": "CIDAS/clipseg-rd64-refined",
+    "output_dir": "checkpoints/clipseg_ft_e4_1024_thr04_v1",
+    "epochs": 4,
+    "batch_size": 2,
+    "lr": 2e-05,
+    "weight_decay": 0.0001,
+    "num_workers": 8,
+    "image_size": 1024,
+    "threshold": 0.4,
+    "seed": 42,
+    "grad_accum_steps": 1,
+    "max_grad_norm": 1.0,
+    "pin_memory": false,
+    "no_pin_memory": false,
+    "prefetch_factor": 4,
+    "persistent_workers": true,
+    "tf32": true,
+    "amp_dtype": "bf16",
+    "no_processor_resize": true
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.2916263845117766,
+      "val_loss": 0.2612741581457891,
+      "val_miou": 0.38545742284872087,
+      "val_dice": 0.5293157921796801
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.25402560823785275,
+      "val_loss": 0.24538014250533316,
+      "val_miou": 0.4030829155214893,
+      "val_dice": 0.5491618741467004
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.24065060700308233,
+      "val_loss": 0.23492309118238022,
+      "val_miou": 0.42019977157698296,
+      "val_dice": 0.5685211458323146
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.23170876002842178,
+      "val_loss": 0.22910731161374887,
+      "val_miou": 0.4273285072973476,
+      "val_dice": 0.575397289527234
+    }
+  ],
+  "train_time_seconds": 1985.2089354991913,
+  "best_score": 0.5013628984122909
+}
